@@ -7,11 +7,10 @@ const { kategoriQueue } = require('../config/middleware/queue');
 const { encryptData } = require('../config/middleware/crypto');
 
 
-// Define cache middleware
 const cacheMiddleware = (req, res, next) => {
     try {
         const key = req.originalUrl;
-        const cachedResponse = cache.get(key);
+        const      cachedResponse = cache.get(key);
         
         if (cachedResponse) {
             return res.json({
