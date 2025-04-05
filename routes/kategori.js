@@ -6,7 +6,7 @@ const cache = new NodeCache({ stdTTL: 60 });
 const { kategoriQueue } = require('../config/middleware/queue');
 const { encryptData } = require('../config/middleware/crypto');
 
-
+/test
 const cacheMiddleware = (req, res, next) => {
     try {
         const key = req.originalUrl;
