@@ -1,35 +1,71 @@
 const Queue = require("bull");
 
+// Flag untuk mengaktifkan/menonaktifkan queue
+const enableQueue = false;
+
 const redisConfig = {
   redis: { 
-    host: "10.251.136.250", 
+    host: "172.19.58.12", 
     port: 6379,
-    maxRetriesPerRequest: 3,
+    connectTimeout: 5000,
+    maxRetriesPerRequest: 1,
     retryStrategy: function(times) {
-      const delay = Math.min(times * 50, 2000);
-      return delay;
+      // Hanya retry 1 kali dengan delay 1 detik
+      if (times > 1) return null; // Tidak retry lagi setelah kali kedua
+      return 1000;
     }
   },
   defaultJobOptions: {
-    attempts: 3,
+    attempts: 1,
     backoff: {
-      type: 'exponential',
+      type: 'fixed',
       delay: 1000,
     },
   },
 };
 
-const kategoriQueue = new Queue("kategoriQueue", redisConfig);
-const produkQueue = new Queue("produkQueue", redisConfig);
+// Fungsi untuk membuat queue dengan fallback
+const createQueue = (name, config) => {
+  if (!enableQueue) {
+    // Return mock queue object jika queue dinonaktifkan
+    return {
+      add: async (data) => ({ data }),
+      on: () => {},
+      getWaitingCount: async () => 0,
+      getActiveCount: async () => 0,
+      getFailedCount: async () => 0
+    };
+  }
+  
+  try {
+    return new Queue(name, config);
+  } catch (error) {
+    console.error(`Error creating ${name} queue:`, error);
+    // Return mock queue jika gagal membuat queue asli
+    return {
+      add: async (data) => ({ data }),
+      on: () => {},
+      getWaitingCount: async () => 0,
+      getActiveCount: async () => 0,
+      getFailedCount: async () => 0
+    };
+  }
+};
 
-// Error handling for queues
-kategoriQueue.on('error', (error) => {
-  console.error('Kategori Queue Error:', error);
-});
+// Buat queue dengan fallback support
+const kategoriQueue = createQueue("kategoriQueue", redisConfig);
+const produkQueue = createQueue("produkQueue", redisConfig);
 
-produkQueue.on('error', (error) => {
-  console.error('Produk Queue Error:', error);
-});
+// Error handling untuk queues
+if (enableQueue) {
+  kategoriQueue.on('error', (error) => {
+    console.error('Kategori Queue Error:', error);
+  });
+
+  produkQueue.on('error', (error) => {
+    console.error('Produk Queue Error:', error);
+  });
+}
 
 // Log queue status
 const logQueueStatus = async (queue, name) => {

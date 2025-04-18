@@ -79,10 +79,18 @@ router.get("/", async (req, res, next) => {
 router.post('/store', upload.single('gambar_produk'), async (req, res) => {
     try {
         let { nama_produk, kategori_id } = req.body;
-        let data = { nama_produk, gambar_produk: req.file.filename, kategori_id };
+        
+        // Tangani kasus ketika tidak ada file yang diunggah
+        let data = { 
+            nama_produk, 
+            gambar_produk: req.file ? req.file.filename : null, 
+            kategori_id 
+        };
+        
         await Model_Produk.store(data);
         res.status(201).json({ status: true, message: 'Data berhasil ditambahkan' });
     } catch (error) {
+        console.error('Error saat menyimpan produk:', error);
         res.status(500).json({ status: false, message: error.message });
     }
 });
@@ -91,32 +99,101 @@ router.patch('/update/:id', upload.single('gambar_produk'), async (req, res) => 
     try {
         let id = req.params.id;
         let { nama_produk, kategori_id } = req.body;
-        let gambar_produk = req.file ? req.file.filename : null;
-        let rows = await Model_Produk.getId(id);
-        if (rows.length > 0) {
-            let oldFile = rows[0].gambar_produk;
-            if (gambar_produk && oldFile) fs.unlinkSync(path.join(__dirname, '../public/images/', oldFile));
+        
+        console.log('Update produk ID:', id);
+        console.log('Body request:', req.body);
+        console.log('File upload:', req.file);
+        
+        // Dapatkan data produk yang akan diupdate
+        let rows = await Model_Produk.getById(id);
+        if (!rows || rows.length === 0) {
+            return res.status(404).json({ 
+                status: false, 
+                message: 'Produk tidak ditemukan' 
+            });
         }
-        let data = { nama_produk, gambar_produk: gambar_produk || rows[0].gambar_produk, kategori_id };
-        await Model_Produk.Update(id, data);
-        res.status(200).json({ status: true, message: 'Data berhasil diperbarui' });
+        
+        const oldData = rows[0];
+        
+        // Tentukan gambar produk
+        let gambar_produk = null;
+        if (req.file) {
+            // Jika ada file baru
+            gambar_produk = req.file.filename;
+            
+            // Hapus file lama jika ada
+            if (oldData.gambar_produk) {
+                const oldFilePath = path.join(__dirname, '../public/images/', oldData.gambar_produk);
+                if (fs.existsSync(oldFilePath)) {
+                    fs.unlinkSync(oldFilePath);
+                    console.log('File lama berhasil dihapus:', oldData.gambar_produk);
+                }
+            }
+        } else {
+            // Jika tidak ada file baru, gunakan gambar lama
+            gambar_produk = oldData.gambar_produk;
+        }
+        
+        // Buat objek data untuk update
+        let data = { 
+            nama_produk: nama_produk || oldData.nama_produk,
+            gambar_produk: gambar_produk,
+            kategori_id: kategori_id || oldData.kategori_id
+        };
+        
+        // Update data
+        await Model_Produk.update(id, data);
+        
+        res.status(200).json({ 
+            status: true, 
+            message: 'Data berhasil diperbarui'
+        });
     } catch (error) {
-        res.status(500).json({ status: false, message: 'Terjadi kesalahan' });
+        console.error('Error saat update produk:', error);
+        res.status(500).json({ 
+            status: false, 
+            message: 'Terjadi kesalahan', 
+            error: error.message
+        });
     }
 });
 
 router.delete('/delete/:id', async (req, res) => {
     try {
         let id = req.params.id;
-        let rows = await Model_Produk.getId(id);
-        if (rows.length > 0) {
-            let fileOld = rows[0].gambar_produk;
-            if (fileOld) fs.unlinkSync(path.join(__dirname, '../public/images/', fileOld));
+        
+        // Dapatkan data produk yang akan dihapus
+        let rows = await Model_Produk.getById(id);
+        if (!rows || rows.length === 0) {
+            return res.status(404).json({ 
+                status: false, 
+                message: 'Produk tidak ditemukan' 
+            });
         }
-        await Model_Produk.Delete(id);
-        res.status(201).json({ status: true, message: 'Data berhasil dihapus' });
+        
+        // Hapus file gambar jika ada
+        if (rows.length > 0 && rows[0].gambar_produk) {
+            const filePath = path.join(__dirname, '../public/images/', rows[0].gambar_produk);
+            if (fs.existsSync(filePath)) {
+                fs.unlinkSync(filePath);
+                console.log('File gambar berhasil dihapus:', rows[0].gambar_produk);
+            }
+        }
+        
+        // Hapus data dari database
+        await Model_Produk.delete(id);
+        
+        res.status(200).json({ 
+            status: true, 
+            message: 'Data berhasil dihapus' 
+        });
     } catch (error) {
-        res.status(500).json({ status: false, message: 'Terjadi kesalahan' });
+        console.error('Error saat hapus produk:', error);
+        res.status(500).json({ 
+            status: false, 
+            message: 'Terjadi kesalahan',
+            error: error.message
+        });
     }
 });
 

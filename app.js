@@ -46,6 +46,10 @@ app.use('/API/produk', produkRouter);
 app.use('/API/register', registrasiRouter);
 app.use('/API/login', loginRouter);
 
+// Tambahkan route untuk halaman login dan register
+app.use('/login', loginRouter);
+app.use('/register', registrasiRouter);
+
 //up
 app.use(function(req, res, next) {
   next(createError(404));

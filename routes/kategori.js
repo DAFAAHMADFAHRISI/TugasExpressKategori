@@ -4,8 +4,16 @@ const router = express.Router();
 const NodeCache = require('node-cache');
 const cache = new NodeCache({ stdTTL: 60 });
 const { kategoriQueue } = require('../config/middleware/queue');
-const { encryptData } = require('../config/middleware/crypto');
+const { encryptData, decryptData } = require('../config/middleware/crypto');
+const rateLimit = require('express-rate-limit');
 
+const limiter = rateLimit({
+    windowMs: 5 * 60 * 1000,
+    max: 5, 
+    standardHeaders: true, 
+    legacyHeaders: false, 
+    message: "Terlalu banyak permintaan. Coba 5 menit lagi.."
+});
 
 const cacheMiddleware = (req, res, next) => {
     try {
@@ -38,21 +46,11 @@ const cacheMiddleware = (req, res, next) => {
 };
 
 // Routes
-router.get('/', cacheMiddleware, async function(req, res, next) {
+router.get('/', limiter, async function(req, res, next) {
     try {
-        const cacheKey = "all-kategori";
-        const cacheData = cache.get(cacheKey);
-
-        if (cacheData) {
-            return res.status(200).json({
-                status: true,
-                message: "Data Kategori (Cache)",
-                data: cacheData
-            });
-        }
-
         let data;
         try {
+            // Coba gunakan queue jika tersedia
             const job = await kategoriQueue.add({ action: 'get' });
             const result = await job.finished();
             if (result && result.data) {
@@ -60,29 +58,30 @@ router.get('/', cacheMiddleware, async function(req, res, next) {
             }
         } catch (queueError) {
             console.error('Queue error:', queueError);
-            // Fallback to direct query if queue fails
-            data = await Model_Kategori.getAll();
+            // Fallback ke query langsung jika queue gagal
         }
 
+        // Jika data belum diperoleh dari queue, ambil langsung dari model
         if (!data) {
             data = await Model_Kategori.getAll();
         }
 
-        // Encrypt data if needed
         try {
-            const encryptedData = await encryptData(data);
-            cache.set(cacheKey, encryptedData);
+            // Coba enkripsi data jika memungkinkan
+            const encrypt = await encryptData(data);
+            const decrypt = await decryptData(encrypt);
             return res.status(200).json({
                 status: true,
                 message: 'Data Kategori',
-                data: encryptedData
+                data: encrypt,
+                dataasli: decrypt
             });
         } catch (encryptError) {
             console.error('Encryption error:', encryptError);
-            cache.set(cacheKey, data);
+            // Fallback tanpa enkripsi jika gagal
             return res.status(200).json({
                 status: true,
-                message: 'Data Kategori',
+                message: 'Data Kategori (Non-encrypted)',
                 data: data
             });
         }
