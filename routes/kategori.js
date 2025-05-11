@@ -6,6 +6,7 @@ const cache = new NodeCache({ stdTTL: 60 });
 const { kategoriQueue } = require('../config/middleware/queue');
 const { encryptData, decryptData } = require('../config/middleware/crypto');
 const rateLimit = require('express-rate-limit');
+const cors = require('cors');
 
 const limiter = rateLimit({
     windowMs: 5 * 60 * 1000,
@@ -14,6 +15,13 @@ const limiter = rateLimit({
     legacyHeaders: false, 
     message: "Terlalu banyak permintaan. Coba 5 menit lagi.."
 });
+
+// Konfigurasi CORS
+router.use(cors({
+  origin: ['http://localhost:4001', 'http://localhost:3000'],
+  methods: ['GET', 'POST', 'PATCH', 'DELETE'],
+  credentials: true
+}));
 
 const cacheMiddleware = (req, res, next) => {
     try {

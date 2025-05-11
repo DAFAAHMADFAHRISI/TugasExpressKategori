@@ -4,6 +4,14 @@ const router = express.Router();
 const fs = require('fs');
 const multer = require('multer');
 const path = require('path');
+const cors = require('cors');
+
+// Konfigurasi CORS
+router.use(cors({
+  origin: ['http://localhost:4001', 'http://localhost:3000'],
+  methods: ['GET', 'POST', 'PATCH', 'DELETE'],
+  credentials: true
+}));
 
 const storage = multer.diskStorage({
     destination: (req, file, cb) => cb(null, 'public/images'),
